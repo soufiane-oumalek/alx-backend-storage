@@ -1,5 +1,5 @@
---script that creates a stored procedure AddBonus that adds a new correction for a student.
--- Drop the existing procedure if it exists
+-- Creates a stored procedure AddBonus that adds a new
+-- correction for a student.
 DROP PROCEDURE IF EXISTS AddBonus;
 DELIMITER $$
 CREATE PROCEDURE AddBonus (user_id INT, project_name VARCHAR(255), score FLOAT)
