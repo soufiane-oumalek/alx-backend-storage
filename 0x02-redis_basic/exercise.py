@@ -38,11 +38,11 @@ class Cache:
 
     def get_str(self, key: str) -> str:
         """Retrieve data from Redis and decode as UTF-8"""
-        return self.get(key, fn=lambda d: d.decode("utf-8"))
+        return self.get(key, str)
 
     def get_int(self, key: str) -> int:
         """Retrieve data from Redis and convert to integer"""
-        return self.get(key, fn=int)
+        return self.get(key, int)
 
 
 def count_calls(method: Callable) -> Callable:
