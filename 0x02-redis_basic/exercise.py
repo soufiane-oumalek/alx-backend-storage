@@ -1,56 +1,27 @@
 #!/usr/bin/env python3
 """
-Redis and Python exercise
+Redis
 """
-
-
-import uuid
 from functools import wraps
-from typing import Callable, Union
+from typing import Union, Optional, Callable
+from uuid import uuid4
 
 import redis
 
-
-class Cache:
-    """Cache class with Redis"""
-
-    def __init__(self) -> None:
-        """Initialize the Cache instance with a Redis client"""
-        self._redis = redis.Redis()
-        self._redis.flushdb()
-
-    @staticmethod
-    def generate_key() -> str:
-        """Generate a random key using UUID"""
-        return str(uuid.uuid4())
-
-    def store(self, data: Union[str, bytes, int, float]) -> str:
-        """Store data in Redis and return the generated key"""
-        key = self.generate_key()
-        self._redis.set(key, data)
-        return key
-
-    def get(self, key: str, fn: Callable = None) -> Union[
-      str, bytes, int, float]:
-        """Retrieve data from Redis and optionally apply conversion function"""
-        data = self._redis.get(key)
-        return fn(data) if fn else data
-
-    def get_str(self, key: str) -> str:
-        """Retrieve data from Redis and decode as UTF-8"""
-        return self.get(key, str)
-
-    def get_int(self, key: str) -> int:
-        """Retrieve data from Redis and convert to integer"""
-        return self.get(key, int)
+UnionOfTypes = Union[str, bytes, int, float]
 
 
 def count_calls(method: Callable) -> Callable:
-    """Decorator to count the number of times a method is called"""
+    """
+    count how many times Cache class are called
+    """
+    key = method.__qualname__
+
     @wraps(method)
     def wrapper(self, *args, **kwargs):
-        """Increment the count for that key every time the method is called"""
-        key = method.__qualname__
+        """
+        Wrapper for counting calls
+        """
         self._redis.incr(key)
         return method(self, *args, **kwargs)
 
@@ -58,34 +29,62 @@ def count_calls(method: Callable) -> Callable:
 
 
 def call_history(method: Callable) -> Callable:
-    """Decorator to store the history of inputs and outputs for a function"""
+    """
+    decorator to store the history of inputs
+    and outputs for a particular function
+    """
+    key = method.__qualname__
+    input_key = f"{key}:inputs"
+    output_key = f"{key}:outputs"
+
     @wraps(method)
     def wrapper(self, *args, **kwargs):
-        """Save the input and output of each function in Redis"""
-        input_key = f"{method.__qualname__}:inputs"
-        output_key = f"{method.__qualname__}:outputs"
-
-        output = method(self, *args, **kwargs)
-
+        """ Wrapper for storing input and output history """
         self._redis.rpush(input_key, str(args))
-        self._redis.rpush(output_key, str(output))
-
-        return output
+        result = method(self, *args, **kwargs)
+        self._redis.rpush(output_key, str(result))
+        return result
 
     return wrapper
 
 
-def replay(fn: Callable) -> None:
-    """Display the history of calls of a particular function"""
-    r = redis.Redis()
-    f_name = fn.__qualname__
-    n_calls = int(r.get(f_name) or 0)
-    print(f'{f_name} was called {n_calls} times:')
+class Cache:
+    """
+    redis class
+    """
 
-    ins = r.lrange(f_name + ":inputs", 0, -1)
-    outs = r.lrange(f_name + ":outputs", 0, -1)
+    def __init__(self):
+        """
+        redis model
+        """
+        self._redis = redis.Redis()
+        self._redis.flushdb()
 
-    for i, o in zip(ins, outs):
-        i_str = i.decode('utf-8') if isinstance(i, bytes) else ""
-        o_str = o.decode('utf-8') if isinstance(o, bytes) else ""
-        print(f'{f_name}(*{i_str}) -> {o_str}')
+    @count_calls
+    @call_history
+    def store(self, data: UnionOfTypes) -> str:
+        """
+        Generate a random key (e.g., using uuid)
+        """
+        key = str(uuid4())
+        self._redis.mset({key: data})
+        return key
+
+    def get(self, key: str, fn: Optional[Callable] = None) -> UnionOfTypes:
+        """
+        Convert the data
+        """
+        if fn:
+            return fn(self._redis.get(key))
+        data = self._redis.get(key)
+        return data
+
+    @staticmethod
+    def get_int(data: bytes) -> int:
+        """Get a number int"""
+        return int.from_bytes(data, "big")
+
+    @staticmethod
+    def get_str(data: bytes) -> str:
+        """Get a string"""
+        return data.decode("utf-8")
